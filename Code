@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Pixel Dino</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+html,body{
+  margin:0;height:100%;font-family:'Press Start 2P',monospace;
+  overflow:hidden;image-rendering:pixelated;user-select:none;
+  background:#000;transition:background 1s ease;
+}
+canvas{display:block;width:100vw;height:100vh;}
+#ui{
+  position:absolute;top:20px;left:20px;color:#00ff99;font-size:12px;
+  text-shadow:0 0 8px #00ff99;z-index:5;
+  transition:all 0.3s ease;
+}
+
+/* Animations */
+@keyframes rgbFlow {
+  0% { background-position:0% 50%; }
+  50% { background-position:100% 50%; }
+  100% { background-position:0% 50%; }
+}
+@keyframes pulse { 0%,100% { filter:brightness(1);} 50% { filter:brightness(1.6);} }
+@keyframes neonPulse {
+  0% { box-shadow:0 0 0px #00ffcc; }
+  50% { box-shadow:0 0 20px #00ffcc,0 0 40px #00ffcc; }
+  100% { box-shadow:0 0 0px #00ffcc; }
+}
+
+/* MENU button */
+#menuBtn{
+  position:absolute;bottom:20px;left:20px;
+  border:2px solid transparent;border-radius:10px;
+  background:linear-gradient(270deg,#00ffcc,#00ffff,#ff00ff,#00ffcc);
+  background-size:400% 400%;
+  animation:rgbFlow 5s linear infinite, pulse 2.5s ease-in-out infinite;
+  color:#000;font-size:12px;padding:8px 14px;cursor:pointer;
+  text-shadow:0 0 5px rgba(255,255,255,0.6);
+  box-shadow:0 0 10px #00ffff80;transition:all .25s;z-index:10;
+}
+#menuBtn:hover{ transform:scale(1.08); box-shadow:0 0 25px #00ffff,0 0 50px #ff00ff; filter:brightness(1.7); }
+#menuBtn:active{ transform:scale(.95); box-shadow:0 0 35px #00ffff,0 0 60px #ff00ff; }
+
+/* Overlay/menu */
+#overlay{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
+  background:rgba(0,0,0,0.9);color:#00ffcc;font-size:18px;text-align:center;
+  transition:opacity .35s ease, transform .35s ease;z-index:10;
+}
+#overlay.hidden{opacity:0;pointer-events:none;transform:scale(1.02);}
+#title{font-size:28px;margin-bottom:20px;color:#fff;text-shadow:0 0 15px #00ffcc;}
+.menuRow{margin-top:15px;display:flex;flex-wrap:wrap;justify-content:center;opacity:1;transform:none;}
+
+/* Buttons */
+button{
+  background:transparent;border:2px solid #00ffcc;color:#00ffcc;
+  font-size:14px;padding:8px 14px;margin:8px;cursor:pointer;border-radius:8px;
+  text-shadow:0 0 5px #00ffcc;transition:all .25s;
+}
+button:hover{ transform:translateY(-3px); }
+button.clicked{ animation:neonPulse .42s ease; }
+
+/* Difficulty buttons */
+.modeBtn{
+  font-size:10px;padding:6px 10px;margin:4px;border:2px solid transparent;border-radius:8px;
+  color:#000;background-size:200% 200%;cursor:pointer;transition:all .2s;
+}
+.modeBtn[data-mode="easy"]{background:linear-gradient(270deg,#00ff00,#33ff66,#00ff00);animation:rgbFlow 4s linear infinite;border-color:#00ff00;}
+.modeBtn[data-mode="intermediate"]{background:linear-gradient(270deg,#ffff00,#ffdd00,#ffff00);animation:rgbFlow 3.8s linear infinite;border-color:#ffea00;}
+.modeBtn[data-mode="normal"]{background:linear-gradient(270deg,#ffcc00,#ffaa00,#ffcc00);animation:rgbFlow 3.5s linear infinite;border-color:#ffcc00;}
+.modeBtn[data-mode="hard"]{background:linear-gradient(270deg,#ff8800,#ff6600,#ff8800);animation:rgbFlow 3s linear infinite;border-color:#ff6600;}
+.modeBtn[data-mode="extreme"]{background:linear-gradient(270deg,#ff3300,#cc0000,#ff3300);animation:rgbFlow 2.7s linear infinite;border-color:#ff3300;}
+.modeBtn[data-mode="impossible"]{background:linear-gradient(270deg,#8000ff,#a000ff,#8000ff);animation:rgbFlow 2.5s linear infinite;border-color:#9900ff;color:#fff;}
+.modeBtn[data-mode="nightmare"]{background:linear-gradient(270deg,#ff33cc,#ff66ff,#ff33cc);animation:rgbFlow 2.3s linear infinite;border-color:#ff33cc;color:#fff;}
+.modeBtn[data-mode="hellfire"]{background:linear-gradient(270deg,#000000,#330000,#000000);animation:rgbFlow 2s linear infinite;border-color:#660000;color:#ff0000;}
+.modeBtn:hover{ transform:scale(1.12); filter:brightness(1.35); box-shadow:0 0 25px currentColor; }
+
+/* Countdown text */
+#countdown {
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  color:#00ffcc;font-size:60px;text-shadow:0 0 20px #00ffff;
+  background:rgba(0,0,0,0.85);
+  opacity:0;pointer-events:none;
+  transition:opacity 0.3s ease;
+  z-index:15;
+}
+#countdown.show { opacity:1; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui">SCORE: 0 | HIGH: 0 | MODE: NORMAL</div>
+<button id="menuBtn" aria-label="menu">MENU</button>
+
+<div id="overlay">
+  <div id="title">Pixel Dino</div>
+
+  <div class="menuRow">
+    <button id="resumeBtn">RESUME</button>
+    <button id="restartBtn">RESTART</button>
+    <button id="quitBtn">QUIT</button>
+  </div>
+
+  <div class="menuRow">
+    <div style="font-size:10px;margin-bottom:8px;color:#fff;">DIFFICULTY</div>
+    <button class="modeBtn" data-mode="easy">EASY</button>
+    <button class="modeBtn" data-mode="intermediate">INTERMEDIATE</button>
+    <button class="modeBtn" data-mode="normal">NORMAL</button>
+    <button class="modeBtn" data-mode="hard">HARD</button>
+    <button class="modeBtn" data-mode="extreme">EXTREME</button>
+    <button class="modeBtn" data-mode="impossible">IMPOSSIBLE</button>
+    <button class="modeBtn" data-mode="nightmare">NIGHTMARE</button>
+    <button class="modeBtn" data-mode="hellfire">HELLFIRE</button>
+  </div>
+
+  <div class="menuRow" style="font-size:10px;margin-top:12px;color:#fff;">(CLICK TO START)</div>
+</div>
+
+<div id="countdown">3</div>
+
+<script>
+const c = document.getElementById('game'), ctx = c.getContext('2d');
+let W = c.width = innerWidth, H = c.height = innerHeight;
+let groundY = H * 0.8;
+let gravity = 1, speed = 8, score = 0, high = 0;
+let gameOver=false, started=false, paused=false;
+let player={}, cacti=[], clouds=[], cactusTimer=0, bgDark=true, mode='normal';
+const ui=document.getElementById('ui'), overlay=document.getElementById('overlay');
+const menuBtn=document.getElementById('menuBtn'), resumeBtn=document.getElementById('resumeBtn'),
+restartBtn=document.getElementById('restartBtn'), quitBtn=document.getElementById('quitBtn');
+const modeBtns=document.querySelectorAll('.modeBtn'), countdown=document.getElementById('countdown');
+
+let audioCtx=null;
+function ensureAudio(){if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();}
+function beep(f=600,d=0.08,t='square',v=0.18){if(!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=t;o.frequency.value=f;o.connect(g);g.connect(audioCtx.destination);g.gain.setValueAtTime(v,audioCtx.currentTime);o.start();o.stop(audioCtx.currentTime+d);}
+
+const modeSettings={
+  easy:{gravity:0.8,speed:6},intermediate:{gravity:0.9,speed:7},normal:{gravity:1,speed:8},
+  hard:{gravity:1.2,speed:10},extreme:{gravity:1.4,speed:12},impossible:{gravity:1.6,speed:16},
+  nightmare:{gravity:1.8,speed:20},hellfire:{gravity:2,speed:25}
+};
+function setMode(m){mode=m;ui.textContent=`SCORE: ${score} | HIGH: ${high} | MODE: ${mode.toUpperCase()}`;}
+
+window.addEventListener('resize',()=>{W=c.width=innerWidth;H=c.height=innerHeight;groundY=H*0.8;});
+
+function reset(){
+  ({gravity,speed}=modeSettings[mode]);
+  score=0;gameOver=false;paused=false;
+  player={x:80,y:groundY-40,w:40,h:40,vy:0,jumping:false};
+  cacti=[];clouds=[];cactusTimer=0;spawnCloud();
+  ui.textContent=`SCORE: ${score} | HIGH: ${high} | MODE: ${mode.toUpperCase()}`;
+  requestAnimationFrame(loop);
+}
+function spawnCactus(delta){
+  cactusTimer+=delta;
+  const interval=Math.max(500,1200-speed*20);
+  if(cactusTimer>=interval){
+    const group=Math.random()<0.5?1:2;
+    for(let i=0;i<group;i++)cacti.push({x:W+i*35,y:groundY-25,w:20,h:25});
+    cactusTimer=0;
+  }
+}
+function spawnCloud(){
+  clouds.push({x:W,y:50+Math.random()*150,w:60,h:20,speed:1+Math.random()});
+  setTimeout(spawnCloud,3000+Math.random()*2000);
+}
+function jump(){if(!started||gameOver||paused)return;ensureAudio();if(!player.jumping){player.vy=-17;player.jumping=true;beep(700,0.08,'square',0.2);}}
+document.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp')jump();if(e.code==='KeyP'&&started&&!gameOver)togglePause();});
+window.addEventListener('touchstart',jump);
+
+let last=0;
+function update(d){
+  player.vy+=gravity;player.y+=player.vy;
+  if(player.y>=groundY-player.h){player.y=groundY-player.h;player.vy=0;player.jumping=false;}
+  cacti.forEach(c=>c.x-=speed);clouds.forEach(cl=>cl.x-=cl.speed);
+  cacti=cacti.filter(c=>c.x+c.w>0);clouds=clouds.filter(cl=>cl.x+cl.w>0);
+  for(const c of cacti){
+    if(player.x<c.x+c.w&&player.x+player.w>c.x&&player.y<c.y+c.h&&player.y+player.h>c.y){
+      gameOver=true;ensureAudio();beep(150,0.28,'sawtooth',0.28);
+      overlay.classList.remove('hidden');document.getElementById('title').textContent='GAME OVER';started=false;
+    }
+  }
+  if(!gameOver){score++;if(score%500===0)beep(900,0.08,'triangle',0.2);if(score%800===0)speed+=0.5;}
+  if(score>high)high=score;
+  ui.textContent=`SCORE: ${score} | HIGH: ${high} | MODE: ${mode.toUpperCase()}`;
+  spawnCactus(d);
+}
+function draw(){
+  ctx.fillStyle=bgDark?'#000':'#fff';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=bgDark?'#555':'#999';ctx.fillRect(0,groundY,W,3);
+  ctx.fillStyle=bgDark?'#888':'#ccc';clouds.forEach(cl=>ctx.fillRect(cl.x,cl.y,cl.w,cl.h));
+  ctx.fillStyle='#0f0';cacti.forEach(c=>ctx.fillRect(c.x,c.y,c.w,c.h));
+  ctx.fillStyle='#777';ctx.fillRect(player.x,player.y,player.w,player.h);
+  ctx.fillStyle=bgDark?'#000':'#fff';ctx.fillRect(player.x+player.w-10,player.y+10,4,4);
+}
+function loop(t=0){
+  const d=t-last;last=t;
+  if(!gameOver&&!paused){update(d);draw();requestAnimationFrame(loop);}
+  else draw();
+}
+
+function togglePause(){paused=!paused;overlay.classList.toggle('hidden',!paused);if(!paused)loop();}
+menuBtn.onclick=()=>{if(started&&!gameOver)togglePause();};
+resumeBtn.onclick=()=>{if(paused)togglePause();};
+restartBtn.onclick=()=>{overlay.classList.add('hidden');started=true;reset();};
+quitBtn.onclick=()=>{started=false;gameOver=true;paused=false;overlay.classList.remove('hidden');};
+
+/* Countdown start */
+function startCountdown(){
+  let count=3;
+  countdown.textContent=count;
+  countdown.classList.add('show');
+  ensureAudio();
+  const timer=setInterval(()=>{
+    count--;
+    if(count>0){
+      countdown.textContent=count;
+      beep(500,0.1,'square',0.25);
+    } else if(count===0){
+      countdown.textContent='GO!';
+      beep(900,0.12,'triangle',0.3);
+    } else {
+      clearInterval(timer);
+      countdown.classList.remove('show');
+      overlay.classList.add('hidden');
+      started=true;
+      reset();
+    }
+  },1000);
+}
+
+/* Mode buttons trigger countdown */
+modeBtns.forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    setMode(btn.dataset.mode);
+    startCountdown();
+  });
+});
+
+/* Click animations */
+document.querySelectorAll('button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    btn.classList.remove('clicked');void btn.offsetWidth;btn.classList.add('clicked');
+  });
+});
+
+setMode('normal');
+</script>
+</body>
+</html>
